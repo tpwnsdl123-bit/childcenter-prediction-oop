@@ -26,8 +26,6 @@ last_year = 2022
 future_start = 2023
 future_end = 2030
 
-
-
 # CAGR 계산
 # Compound Annaul Growth Ratio (연평균 성장률)
 def calc_cagr(series, start_year, end_year):

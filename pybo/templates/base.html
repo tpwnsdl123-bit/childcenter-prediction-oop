@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='bootstrap-icons.css') }}">
 
+    {% block extra_css %}{% endblock %}
+
     <title>tAIke</title>
 </head>
 
