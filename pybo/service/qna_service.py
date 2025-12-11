@@ -1,4 +1,3 @@
-# pybo/service/qna_service.py
 from flask import g
 
 from pybo.service.question_repository import QuestionRepository

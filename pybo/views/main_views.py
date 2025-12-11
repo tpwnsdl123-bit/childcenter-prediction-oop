@@ -7,7 +7,6 @@ bp = Blueprint('main', __name__, url_prefix='/')
 def index():
     return render_template('main/home.html')
 
-
 @bp.route('/introduce')
 def introduce():
     return render_template('main/introduce.html')    
@@ -21,6 +20,9 @@ def dashboard():
 def predict():
     return render_template('main/predict.html')
 
+@bp.route('/genai')
+def genai():
+    return render_template('main/genai.html')
 
 @bp.route('/qna')
 def qna():

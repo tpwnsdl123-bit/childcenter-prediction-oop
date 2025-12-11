@@ -26,6 +26,7 @@ def create_app():
         answer_views,
         data_views,
         predict_views,
+        genai_views,
     )
 
     app.register_blueprint(main_views.bp)
@@ -34,5 +35,5 @@ def create_app():
     app.register_blueprint(answer_views.bp)
     app.register_blueprint(data_views.bp)
     app.register_blueprint(predict_views.bp)
-
+    app.register_blueprint(genai_views.bp)
     return app

@@ -74,3 +74,39 @@ class Users(db.Model):
     username = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
+
+class GenAIChatLog(db.Model):
+    __tablename__ = 'genai_chat_log'
+
+    id = db.Column(
+        db.Integer,
+        db.Sequence('genai_chat_log_seq', start=1, increment=1),
+        primary_key=True
+    )
+
+    # 로그인 안 한 상태에서도 쓸 수 있게 nullable=True
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey('users.id'),
+        nullable=True
+    )
+
+    # 어느 페이지/기능에서 쓴 건지 (예: 'qna', 'dashboard', 'predict' 등)
+    page = db.Column(db.String(50), nullable=True)
+
+    # 어떤 타입의 생성 기능인지 (보고서/정책/지표/QA 구분용)
+    task_type = db.Column(db.String(30), nullable=False)
+
+    question = db.Column(db.Text(), nullable=False)
+    answer = db.Column(db.Text(), nullable=False)
+
+    created_at = db.Column(
+        db.DateTime(),
+        nullable=False,
+        server_default=db.func.now()
+    )
+
+    user = db.relationship(
+        'Users',
+        backref=db.backref('genai_chat_logs', lazy='dynamic')
+    )
