@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='genai.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container genai-wrapper mt-4 mb-5">
+
+    <!-- 상단 헤더 -->
+    <section class="genai-header mb-4">
+        <h1 class="genai-title">생성형 AI 도우미</h1>
+        <p class="genai-subtitle">
+            지역아동센터 수요 예측 결과와 다양한 지표를 분석해서
+            보고서, 정책 아이디어, 지표 해설, 질의응답까지 도와주는 분석 코파일럿입니다.
+        </p>
+        <div class="genai-badges mt-2">
+            <span><i class="bi bi-bar-chart-line"></i> 예측 결과 해설</span>
+            <span><i class="bi bi-lightbulb"></i> 정책 아이디어</span>
+            <span><i class="bi bi-robot"></i> LLM 기반 생성형 AI</span>
+        </div>
+    </section>
+
+    <!-- 탭 카드 -->
+    <section class="card genai-card">
+        <!-- 탭 메뉴 -->
+        <ul class="nav nav-tabs px-3 pt-2" id="genaiTab" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active"
+                   id="report-tab"
+                   data-toggle="tab"
+                   href="#report"
+                   role="tab">
+                    <i class="bi bi-file-earmark-text"></i> 보고서 생성
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link"
+                   id="policy-tab"
+                   data-toggle="tab"
+                   href="#policy"
+                   role="tab">
+                    <i class="bi bi-flag"></i> 정책 아이디어
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link"
+                   id="explain-tab"
+                   data-toggle="tab"
+                   href="#explain"
+                   role="tab">
+                    <i class="bi bi-question-circle"></i> 지표 설명
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link"
+                   id="ner-tab"
+                   data-toggle="tab"
+                   href="#ner"
+                   role="tab">
+                    <i class="bi bi-braces"></i> NER 분석
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link"
+                   id="qa-tab"
+                   data-toggle="tab"
+                   href="#qa"
+                   role="tab">
+                    <i class="bi bi-chat-dots"></i> AI Q&amp;A
+                </a>
+            </li>
+        </ul>
+        <!-- 탭 콘텐츠 -->
+        <div class="tab-content p-4" id="genaiTabContent">
+
+            <!-- 1) 보고서 생성 -->
+            <div class="tab-pane fade show active" id="report" role="tabpanel">
+                <div class="genai-tab-pane-title">예측 기반 자동 보고서 생성</div>
+                <p class="genai-tab-desc">
+                    선택한 자치구·연도의 예측 결과를 바탕으로 정책 담당자가 바로 읽을 수 있는
+                    보고서 형태의 문단을 생성합니다. (나중에 DB 연동 예정)
+                </p>
+
+                <label class="genai-form-label">요청 내용</label>
+                <textarea id="report-input"
+                          class="form-control genai-textarea mb-3" rows="3"
+                          placeholder="예: 강남구 2023~2030 예측을 한 문단짜리 보고서 형식으로 정리해줘"></textarea>
+
+                <button class="btn btn-primary genai-btn-main" id="report-generate-btn">
+                    <i class="bi bi-play-fill"></i> 보고서 생성하기
+                </button>
+
+                <div class="genai-result-card card mt-3">
+                    <div class="card-body">
+                        <div class="genai-result-title">결과</div>
+                        <div id="report-result" class="genai-result-body"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2) 정책 아이디어 -->
+            <div class="tab-pane fade" id="policy" role="tabpanel">
+                <div class="genai-tab-pane-title">자치구 맞춤 정책 아이디어 제안</div>
+                <p class="genai-tab-desc">
+                    다문화 비율, 취약계층 지표, 예측 결과 등을 바탕으로
+                    해당 자치구에 적용할 수 있는 돌봄·지원 정책 아이디어를 생성합니다.
+                </p>
+
+                <label class="genai-form-label">요청 내용</label>
+                <textarea id="policy-input"
+                          class="form-control genai-textarea mb-3" rows="3"
+                          placeholder="예: 중랑구의 향후 수요를 고려해서 필요한 돌봄 정책 아이디어 3가지를 제안해줘"></textarea>
+
+                <button class="btn btn-primary genai-btn-main" id="policy-generate-btn">
+                    <i class="bi bi-lightbulb"></i> 정책 제안 생성
+                </button>
+
+                <div class="genai-result-card card mt-3">
+                    <div class="card-body">
+                        <div class="genai-result-title">결과</div>
+                        <div id="policy-result" class="genai-result-body"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3) 지표 설명 -->
+            <div class="tab-pane fade" id="explain" role="tabpanel">
+                <div class="genai-tab-pane-title">지표 설명 (Indicator Explainer)</div>
+                <p class="genai-tab-desc">
+                    다문화학생률, 한부모 가구 수, 1인당 GRDP 등 모델에 들어가는 지표들이
+                    무엇을 의미하는지, 예측에 어떤 영향을 주는지 쉽게 설명합니다.
+                </p>
+
+                <label class="genai-form-label">지표 또는 질문</label>
+                <textarea id="explain-input"
+                          class="form-control genai-textarea mb-3" rows="3"
+                          placeholder="예: &quot;다문화학생률&quot;이 어떤 지표인지, 돌봄 수요 예측에서 왜 중요한지 설명해줘"></textarea>
+
+                <button class="btn btn-primary genai-btn-main" id="explain-generate-btn">
+                    <i class="bi bi-question-circle"></i> 설명 생성
+                </button>
+
+                <div class="genai-result-card card mt-3">
+                    <div class="card-body">
+                        <div class="genai-result-title">결과</div>
+                        <div id="explain-result" class="genai-result-body"></div>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- 4) NER 분석 -->
+            <div class="tab-pane fade" id="ner" role="tabpanel">
+                <div class="genai-tab-pane-title">개체명 인식 기반 정책 문장 분석</div>
+                <p class="genai-tab-desc">
+                    정책 문서나 기사 문장을 입력하면 기관, 지역, 인물 이름 등을 자동으로 인식해서
+                    분석에 활용할 수 있도록 정리합니다.
+                </p>
+
+                <label class="genai-form-label">분석할 문장</label>
+                <textarea id="ner-input"
+                          class="form-control genai-textarea mb-3" rows="3"
+                          placeholder="예: 서울시는 2025년부터 강북구와 노원구에 신규 지역아동센터 3곳을 설치한다고 발표했다."></textarea>
+
+                <button class="btn btn-primary genai-btn-main" id="ner-generate-btn">
+                    <i class="bi bi-braces"></i> NER 분석 실행
+                </button>
+
+                <div class="genai-result-card card mt-3">
+                    <div class="card-body">
+                        <div class="genai-result-title">NER 결과</div>
+                        <div id="ner-result" class="genai-result-body"></div>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- 5) AI Q&A -->
+            <div class="tab-pane fade" id="qa" role="tabpanel">
+                <div class="genai-tab-pane-title">자유 질문형 AI Q&amp;A</div>
+                <p class="genai-tab-desc">
+                    예측 결과나 지표에 대해 자연어로 질문하면, 맥락에 맞게 분석형 답변을 생성합니다.
+                    나중에 실제 예측·지표 데이터를 함께 넘겨서 더 정교한 답변을 만들 예정입니다.
+                </p>
+
+                <label class="genai-form-label">질문</label>
+                <textarea id="qa-input"
+                          class="form-control genai-textarea mb-3" rows="3"
+                          placeholder="예: 송파구의 향후 수요가 증가한다면, 어떤 요인들이 관련되어 있을 가능성이 있는지 설명해줘"></textarea>
+
+                <button class="btn btn-primary genai-btn-main" id="qa-generate-btn">
+                    <i class="bi bi-chat-dots"></i> 답변 생성
+                </button>
+
+                <div class="genai-result-card card mt-3">
+                    <div class="card-body">
+                        <div class="genai-result-title">AI 답변</div>
+                        <div id="qa-result" class="genai-result-body"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+</div>
+{% endblock %}
+
+{% block script %}
+<script src="{{ url_for('static', filename='js/genai.js') }}"></script>
+{% endblock %}
