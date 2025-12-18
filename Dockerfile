@@ -1,9 +1,9 @@
 # 파이썬 환경 준비
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 # 오라클 DB 연결을 위한 필수 도구 설치 (cx_Oracle용)
 RUN apt-get update && apt-get install -y \
-    libaio1t64 wget unzip gcc g++ \
+    libaio1 wget unzip gcc g++ \
     && rm -rf /var/lib/apt/lists/*
 
 # 오라클 클라이언트 설치 (기존 DB 환경 유지용)
