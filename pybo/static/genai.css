@@ -1,15 +1,6 @@
 .genai-wrapper {
     max-width: 1100px;
-}
-
-.genai-header {
-    padding: 2.5rem 2rem 1.5rem 2rem;
-    border-radius: 1rem;
-    background: linear-gradient(135deg, #0b1f4b 0%, #3fd5c6 100%);
-    color: #fff;
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
-    position: relative;
-    overflow: hidden;
+    margin: 0 auto;
 }
 
 .genai-header::after {
@@ -23,7 +14,6 @@
     background: rgba(255, 255, 255, 0.12);
 }
 
-/* 히어로 서브타이틀 */
 .hero-genai .hero-subtitle,
 .hero-genai-subtitle {
     max-width: 620px;
@@ -37,32 +27,13 @@
     margin-bottom: 0.25rem;
 }
 
-.genai-subtitle {
-    opacity: 0.9;
-    font-size: 0.95rem;
-    max-width: 550px;
-}
-
-.genai-badges span {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    font-size: 0.8rem;
-    padding: 0.2rem 0.6rem;
-    border-radius: 999px;
-    background-color: rgba(255, 255, 255, 0.15);
-    backdrop-filter: blur(6px);
-    margin-right: 0.4rem;
-    margin-top: 0.4rem;
-}
-
-/* 탭 카드 */
-
+/* 탭 카드 스타일 */
 .genai-card {
     margin-top: 1.8rem;
     border-radius: 1rem;
     border: 1px solid #e5e7eb;
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+    background: #fff;
 }
 
 .genai-card .nav-tabs {
@@ -71,91 +42,185 @@
 
 .genai-card .nav-link {
     border: none;
-    border-bottom: 2px solid transparent;
+    border-bottom: 3px solid transparent;
     color: #6b7280;
     font-weight: 500;
-    padding: 0.9rem 1.1rem;
+    padding: 1rem 1.2rem;
     display: flex;
     align-items: center;
-    gap: 0.3rem;
-    font-size: 0.9rem;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+    transition: all 0.2s;
 }
 
-.genai-card .nav-link .bi {
-    font-size: 1rem;
+.genai-card .nav-link:hover {
+    color: #0b1f4b;
 }
 
 .genai-card .nav-link.active {
     color: #0b1f4b;
     border-bottom-color: #3fd5c6;
     background-color: transparent;
+    font-weight: 700;
 }
 
-/* 탭 내부 공통 */
-
+/* 탭 내부 콘텐츠 공통 */
 .genai-tab-pane-title {
-    font-size: 1.05rem;
-    font-weight: 600;
+    font-size: 1.2rem;
+    font-weight: 700;
     margin-bottom: 0.5rem;
+    color: #111827;
 }
 
 .genai-tab-desc {
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     color: #6b7280;
-    margin-bottom: 1rem;
+    margin-bottom: 1.5rem;
 }
 
 .genai-form-label {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #4b5563;
-    margin-bottom: 0.25rem;
-}
-
-.genai-textarea {
-    font-size: 0.92rem;
-    resize: vertical;
-}
-
-.genai-btn-main {
-    padding: 0.45rem 1.2rem;
     font-size: 0.9rem;
-    border-radius: 999px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.3rem;
 }
 
-/* 결과 카드 */
+.genai-textarea, .form-control {
+    font-size: 0.95rem;
+    border-radius: 0.5rem;
+}
 
-.genai-result-card {
-    margin-top: 1rem;
+.genai-btn-main, .btn-primary {
+    border-radius: 0.5rem;
+    font-weight: 600;
+}
+
+/* AI 보고서 결과 화면 스타일 (JSON 파싱용) */
+
+/* 결과 카드 컨테이너 */
+.genai-result-card, #resultSection {
+    margin-top: 1.5rem;
     border-radius: 0.75rem;
     border: 1px solid #e5e7eb;
-    background-color: #f9fafb;
+    background-color: #ffffff;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.02);
 }
 
-.genai-result-title {
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #9ca3af;
-    margin-bottom: 0.4rem;
+/* 보고서 제목 */
+.ai-report-title {
+    color: #1a202c;
+    font-size: 1.4rem;
+    font-weight: 800;
+    padding-bottom: 1rem;
+    margin-bottom: 1.2rem;
+    border-bottom: 2px solid #3fd5c6; /* 포인트 컬러 */
 }
 
-.genai-result-body {
+/* 요약 박스 */
+.ai-summary-box {
+    background-color: #f0f9ff;
+    border-left: 5px solid #007bff;
+    padding: 1.2rem;
+    border-radius: 6px;
+    margin-bottom: 1.5rem;
+    color: #2c5282;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+/* 본문 텍스트 */
+.ai-content-text {
+    color: #374151;
+    line-height: 1.8;
+    font-size: 1.05rem;
+    white-space: pre-wrap; /* 줄바꿈 유지 */
+    text-align: justify;
+}
+
+/* 로딩 스피너 */
+#loadingSpinner {
+    text-align: center;
+    padding: 3rem 0;
+    color: #6b7280;
+}
+
+/* AI 모델 설정 탭 (Config) 스타일 */
+
+/* 설정 카드 컨테이너 */
+.config-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem; /* 기존 genai-card와 통일 */
+    padding: 1.5rem;
+    height: 100%; /* 카드 높이 균일하게 맞춤 */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.config-card:hover {
+    transform: translateY(-2px); /* 살짝 떠오르는 효과 */
+    box-shadow: 0 6px 12px rgba(0,0,0,0.06);
+}
+
+/* 카드 내부 섹션 제목 (예: 1. 학습 전략) */
+.config-section-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #374151;
+    margin-bottom: 1rem;
+    padding-left: 0.8rem;
+    border-left: 4px solid #3fd5c6; /* genai 포인트 컬러와 맞춤 */
+}
+
+/* 입력 라벨 (변수명) */
+.config-label {
     font-size: 0.9rem;
-    white-space: pre-wrap;
-    color: #111827;
-    min-height: 2rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 0.2rem;
+    display: block;
+}
+
+/* 설명 텍스트 (작은 회색 글씨) */
+.config-desc {
+    font-size: 0.8rem;
+    color: #9ca3af;
+    margin-top: 0.3rem;
+    line-height: 1.4;
+    word-break: keep-all; /* 단어 단위 줄바꿈 */
+}
+
+/* 강조 텍스트 (권장 범위 등) */
+.highlight-text {
+    color: #007bff;
+    font-weight: 600;
+}
+
+/* 폼 그룹 간격 조정 */
+.config-card .form-group {
+    margin-bottom: 1.2rem;
+}
+
+.config-card .form-group:last-child {
+    margin-bottom: 0;
+}
+
+/* 선택(Select) 박스 스타일 미세 조정 */
+.config-card .form-control {
+    font-size: 0.9rem;
+    padding: 0.4rem 0.7rem;
+    height: auto;
 }
 
 /* 반응형 */
-
 @media (max-width: 768px) {
     .genai-header {
-        padding: 1.8rem 1.4rem 1.2rem 1.4rem;
+        padding: 1.8rem 1.4rem;
     }
-
     .genai-title {
-        font-size: 1.5rem;
+        font-size: 1.6rem;
+    }
+    .ai-report-title {
+        font-size: 1.2rem;
     }
 }

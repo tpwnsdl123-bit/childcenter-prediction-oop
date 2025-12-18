@@ -1,131 +1,100 @@
-from flask import Blueprint, request, jsonify, current_app, g
+from flask import Blueprint, request, jsonify, current_app, g, render_template
 from pybo.service.genai_service import GenAIService
 
+# Blueprint 설정 (URL 프리픽스 확인: /genai-api)
 bp = Blueprint("genai_api", __name__, url_prefix="/genai-api")
 
 genai_service = GenAIService()
 
 
+# 보고서 생성
 @bp.route("/report", methods=["POST"])
-def generate_report(): # 보고서 생성
+def generate_report():
+    data = request.get_json() or {}
+
+    # UI의 드롭다운에서 보낸 값 받기
+    district = (data.get("district") or "").strip()
+    end_year = data.get("end_year")
+    prompt = data.get("prompt")
+
+    # 유효성 검사
+    if not district or not end_year:
+        return jsonify({"success": False, "error": "자치구와 연도를 모두 선택해주세요."}), 400
+
+    try:
+        # 서비스 호출 (JSON 포맷 강제 로직이 들어있는 함수)
+        result_text = genai_service.generate_report_with_data(
+            user_prompt=prompt,
+            district=district,
+            start_year=2023,  # 시작 연도는 고정하거나 UI에서 받아도 됨
+            end_year=int(end_year)
+        )
+        return jsonify({"success": True, "result": result_text})
+    except Exception as e:
+        print(f"generate_report error: {e}", flush=True)
+        return jsonify({"success": False, "error": "보고서 생성 중 오류가 발생했습니다."}), 500
+
+
+# 정책 아이디어 생성
+@bp.route("/policy", methods=["POST"])
+def generate_policy():
     data = request.get_json() or {}
     prompt = (data.get("prompt") or "").strip()
-
-    district = (data.get("district") or "").strip() or None
-    start_year = data.get("start_year")
-    end_year = data.get("end_year")
 
     if not prompt:
         return jsonify({"success": False, "error": "요청 내용을 입력해 주세요."}), 400
 
     try:
-        result_text = genai_service.generate_report_with_data(
-            prompt,
-            district=district,
-            start_year=start_year,
-            end_year=end_year,
-        )
-        return jsonify({"success": True, "result": result_text})
-    except Exception as e:
-        print("generate_report error:", e, flush=True)
-        return (
-            jsonify({"success": False, "error": "보고서 생성 중 오류가 발생했습니다."}),
-            500,
-        )
-
-@bp.route("/policy", methods=["POST"])
-def generate_policy():  # 정책 아이디어
-    data = request.get_json() or {}
-    prompt = (data.get("prompt") or "").strip()
-
-    # 선택적으로 자치구 / 연도 받기 (UI에서 안 보내면 전부 None)
-    district = (data.get("district") or "").strip() or None
-    start_year = data.get("start_year")
-    end_year = data.get("end_year")
-
-    if not prompt:
-        return jsonify({"success": False, "error": "prompt is required"}), 400
-
-    try:
-        text = genai_service.generate_policy(
-            prompt,
-            district=district,
-            start_year=start_year,
-            end_year=end_year,
-        )
-        return jsonify({"success": True, "result": text})
-    except Exception:
-        current_app.logger.exception("genai policy error")
-        return jsonify({"success": False, "error": "정책 아이디어 생성 중 오류가 발생했습니다."}), 500
-
-@bp.route("/explain", methods=["POST"])
-def explain():  # 지표 설명
-    data = request.get_json() or {}
-    prompt = (data.get("prompt") or "").strip()
-
-    district = (data.get("district") or "").strip() or None
-    start_year = data.get("start_year")
-    end_year = data.get("end_year")
-
-    if not prompt:
-        return jsonify({"success": False, "error": "지표나 질문을 입력해 주세요."}), 400
-
-    try:
-        text = genai_service.explain_indicator(
-            prompt,
-            district=district,
-            start_year=start_year,
-            end_year=end_year,
-        )
+        # 정책 제안은 연도/지역 정보가 필수는 아니지만, 있으면 더 좋음
+        text = genai_service.generate_policy(prompt)
         return jsonify({"success": True, "result": text})
     except Exception as e:
-        current_app.logger.exception("genai explain error")
-        return jsonify({"success": False, "error": "지표 설명 생성 중 오류가 발생했습니다."}), 500
+        current_app.logger.error(f"policy error: {e}")
+        return jsonify({"success": False, "error": "정책 제안 생성 중 오류가 발생했습니다."}), 500
 
 
-@bp.route("/ner", methods=["POST"])
-def ner(): # NER 분석
-    data = request.get_json() or {}
-    text = (data.get("text") or "").strip()
-
-    if not text:
-        return jsonify({"success": False, "error": "분석할 문장을 입력해 주세요."}), 400
-
-    try:
-        items = genai_service.analyze_ner(text)
-        return jsonify({"success": True, "items": items})
-    except Exception:
-        current_app.logger.exception("genai ner error")
-        return jsonify({"success": False, "error": "NER 분석 중 오류가 발생했습니다."}), 500
-
+# AI Q&A (지표 설명 + QA 통합)
 @bp.route("/qa", methods=["POST"])
-def qa():  # Q&A
+def qa():
     data = request.get_json() or {}
-
     question = (data.get("question") or "").strip()
-    page = (data.get("page") or "").strip() or None
-
-    district = (data.get("district") or "").strip() or None
-    start_year = data.get("start_year")
-    end_year = data.get("end_year")
 
     if not question:
-        return jsonify({"success": False, "error": "질문을 입력해주세요."}), 400
+        return jsonify({"success": False, "error": "질문을 입력해 주세요."}), 400
 
+    # 로그인 사용자 ID 확인 (선택 사항)
     user_id = None
-    if hasattr(g, "user_id") and g.user:
+    if hasattr(g, "user_id") and getattr(g, "user", None):
         user_id = g.user.id
 
     try:
         answer = genai_service.answer_qa_with_log(
             question=question,
             user_id=user_id,
-            page=page,
-            district=district,
-            start_year=start_year,
-            end_year=end_year,
+            page="genai"
         )
         return jsonify({"success": True, "result": answer})
-    except Exception:
-        current_app.logger.exception("genai qa error")
-        return jsonify({"success": False, "error": "Q&A 생성 중 오류가 발생했습니다."}), 500
+    except Exception as e:
+        current_app.logger.error(f"qa error: {e}")
+        return jsonify({"success": False, "error": "답변 생성 중 오류가 발생했습니다."}), 500
+
+
+# 설정 변경 API (JSON 반환으로 변경됨)
+@bp.route("/config", methods=["POST"])
+def config():
+    data = request.get_json() or {}
+
+    try:
+        new_temp = float(data.get("temperature", 0.35))
+        new_tokens = int(data.get("max_tokens", 600))
+
+        # 서비스의 설정값 업데이트
+        genai_service.update_settings({
+            "temperature": new_temp,
+            "max_tokens": new_tokens
+        })
+
+        return jsonify({"success": True, "message": "설정 변경 완료"})
+
+    except ValueError:
+        return jsonify({"success": False, "error": "잘못된 숫자 형식입니다."}), 400

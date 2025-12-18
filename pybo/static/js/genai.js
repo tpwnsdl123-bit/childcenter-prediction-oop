@@ -1,232 +1,254 @@
 document.addEventListener("DOMContentLoaded", function () {
-    // 보고서 생성 탭
-    const reportInput = document.getElementById("report-input");
-    const reportBtn = document.getElementById("report-generate-btn");
-    const reportResultBox = document.getElementById("report-result");
 
-    if (reportBtn && reportInput && reportResultBox) {
-        reportBtn.addEventListener("click", async function () {
-            const text = (reportInput.value || "").trim();
+    // ============================================================
+    // 1. 연도 선택 스마트 로직 (시작 연도에 따라 종료 연도 자동 변경)
+    // ============================================================
+    const startSelect = document.getElementById('startYear');
+    const endSelect = document.getElementById('endYear');
+    const MAX_YEAR = 2030;
 
-            if (!text) {
-                alert("요청 내용을 입력해 주세요.");
-                reportInput.focus();
+    if (startSelect && endSelect) {
+        function updateEndYearOptions() {
+            const startVal = parseInt(startSelect.value);
+            const currentEndVal = parseInt(endSelect.value);
+
+            endSelect.innerHTML = "";
+
+            for (let y = startVal; y <= MAX_YEAR; y++) {
+                const option = document.createElement("option");
+                option.value = y;
+                option.textContent = y + "년";
+                endSelect.appendChild(option);
+            }
+
+            if (!isNaN(currentEndVal) && currentEndVal >= startVal) {
+                endSelect.value = currentEndVal;
+            } else {
+                endSelect.value = startVal;
+            }
+        }
+        startSelect.addEventListener('change', updateEndYearOptions);
+        updateEndYearOptions();
+    }
+
+
+    // ============================================================
+    // 2. [보고서 생성 탭] (ID 수정 완료)
+    // ============================================================
+    const reportForm = document.getElementById("reportForm");
+    const resultSection = document.getElementById("resultSection");
+    const loadingSpinner = document.getElementById("loadingSpinner");
+    const aiTitle = document.getElementById("aiTitle");
+    const aiSummary = document.getElementById("aiSummary");
+    const aiContent = document.getElementById("aiContent");
+
+    if (reportForm) {
+        reportForm.addEventListener("submit", async function (e) {
+            e.preventDefault();
+
+            const region = document.getElementById("regionSelect").value;
+            const startYearVal = document.getElementById("startYear").value;
+            const endYearVal = document.getElementById("endYear").value;
+            const reportBtn = reportForm.querySelector("button[type='submit']");
+
+            // 유효성 검사
+            if (parseInt(startYearVal) > parseInt(endYearVal)) {
+                alert("시작 연도는 종료 연도보다 클 수 없습니다.");
                 return;
             }
 
-            reportBtn.disabled = true;
-            const originalText = reportBtn.innerText;
-            reportBtn.innerText = "생성 중...";
-            reportResultBox.textContent = "보고서를 생성하는 중입니다...";
+            // UI 초기화
+            if(resultSection) resultSection.style.display = "none";
+            if(loadingSpinner) loadingSpinner.style.display = "block";
+            if(reportBtn) {
+                reportBtn.disabled = true;
+                reportBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 생성 중...';
+            }
 
             try {
                 const resp = await fetch("/genai-api/report", {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ prompt: text }),
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        district: region,
+                        start_year: parseInt(startYearVal),
+                        end_year: parseInt(endYearVal),
+                        prompt: "report"
+                    }),
                 });
 
                 const data = await resp.json();
 
                 if (data.success) {
-                    reportResultBox.textContent = data.result;
+                    let parsedData = { title: "분석 결과", summary: "요약 정보 없음", content: data.result };
+                    try {
+                        let cleanJson = data.result.replace(/```json/g, "").replace(/```/g, "").trim();
+                        parsedData = JSON.parse(cleanJson);
+                    } catch (err) {
+                        console.warn("JSON 파싱 실패:", err);
+                        parsedData.content = data.result;
+                    }
+
+                    if(aiTitle) aiTitle.textContent = parsedData.title || "분석 보고서";
+                    if(aiSummary) aiSummary.textContent = parsedData.summary || "요약된 내용이 없습니다.";
+                    if(aiContent) aiContent.innerText = parsedData.content || "";
+
+                    if(loadingSpinner) loadingSpinner.style.display = "none";
+                    if(resultSection) resultSection.style.display = "block";
+
                 } else {
-                    reportResultBox.textContent =
-                        data.error || "보고서 생성 중 오류가 발생했습니다.";
+                    alert(data.error || "오류가 발생했습니다.");
+                    if(loadingSpinner) loadingSpinner.style.display = "none";
                 }
             } catch (err) {
                 console.error(err);
-                reportResultBox.textContent =
-                    "요청 처리 중 오류가 발생했습니다.";
+                alert("서버 통신 중 오류가 발생했습니다.");
+                if(loadingSpinner) loadingSpinner.style.display = "none";
             } finally {
-                reportBtn.disabled = false;
-                reportBtn.innerText = originalText;
+                if(reportBtn) {
+                    reportBtn.disabled = false;
+                    reportBtn.innerHTML = '<i class="bi bi-magic"></i> 보고서 생성';
+                }
             }
         });
     }
 
-    // 정책 아이디어 탭
+
+    // ============================================================
+    // 3. [정책 아이디어 탭]
+    // ============================================================
+    const policyBtn = document.getElementById("policy-btn");
     const policyInput = document.getElementById("policy-input");
-    const policyBtn = document.getElementById("policy-generate-btn");
     const policyResultBox = document.getElementById("policy-result");
 
     if (policyBtn && policyInput && policyResultBox) {
         policyBtn.addEventListener("click", async function () {
             const text = (policyInput.value || "").trim();
-
-            if (!text) {
-                alert("요청 내용을 입력해 주세요.");
-                policyInput.focus();
-                return;
-            }
+            if (!text) { alert("요청 내용을 입력해 주세요."); policyInput.focus(); return; }
 
             policyBtn.disabled = true;
-            const originalText = policyBtn.innerText;
-            policyBtn.innerText = "생성 중...";
-            policyResultBox.textContent = "정책 아이디어를 생성하는 중입니다...";
+            const originalText = policyBtn.innerHTML;
+            policyBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 생성 중...';
+            policyResultBox.textContent = "정책 아이디어를 생성하고 있습니다...";
 
             try {
                 const resp = await fetch("/genai-api/policy", {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ prompt: text }),
                 });
+                const data = await resp.json();
 
+                if (data.success) policyResultBox.textContent = data.result;
+                else policyResultBox.textContent = data.error || "오류 발생";
+
+            } catch (err) {
+                console.error(err);
+                policyResultBox.textContent = "서버 통신 오류";
+            } finally {
+                policyBtn.disabled = false;
+                policyBtn.innerHTML = originalText;
+            }
+        });
+    }
+
+
+    // ============================================================
+    // 4. [AI Q&A 탭]
+    // ============================================================
+    const qaBtn = document.getElementById("qa-btn");
+    const qaInput = document.getElementById("qa-input");
+    const qaResult = document.getElementById("qa-result");
+
+    if (qaBtn && qaInput && qaResult) {
+        qaBtn.addEventListener("click", async function () {
+            const question = qaInput.value.trim();
+            if (!question) { alert("질문을 입력해 주세요."); qaInput.focus(); return; }
+
+            qaBtn.disabled = true;
+            const originalText = qaBtn.innerHTML;
+            qaBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 답변 중...';
+            qaResult.textContent = "데이터를 분석하여 답변을 생성 중입니다...";
+
+            try {
+                const resp = await fetch("/genai-api/qa", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ question: question }),
+                });
+                const data = await resp.json();
+
+                if (data.success) qaResult.textContent = data.result;
+                else qaResult.textContent = data.error || "오류 발생";
+
+            } catch (err) {
+                console.error(err);
+                qaResult.textContent = "서버 통신 오류";
+            } finally {
+                qaBtn.disabled = false;
+                qaBtn.innerHTML = originalText;
+            }
+        });
+    }
+
+
+    // genai.js (configForm 리스너 전체 교체)
+
+    const configForm = document.getElementById("configForm");
+
+    if (configForm) {
+        configForm.addEventListener("submit", async function (e) {
+            e.preventDefault();
+
+            const payload = {
+                // [추론 파라미터]
+                temperature: parseFloat(document.getElementById("temperature").value) || 0.35,
+                max_tokens: parseInt(document.getElementById("max_tokens").value) || 600,
+
+                // [학습 파라미터 - 요청하신 10개 항목]
+                max_steps: parseInt(document.getElementById("max_steps").value),
+                evaluation_strategy: document.getElementById("evaluation_strategy").value,
+                save_strategy: document.getElementById("save_strategy").value,
+
+                learning_rate: document.getElementById("learning_rate").value,
+                optim: document.getElementById("optim").value,
+                weight_decay: parseFloat(document.getElementById("weight_decay").value),
+
+                warmup_steps: parseInt(document.getElementById("warmup_steps").value),
+                eval_steps: parseInt(document.getElementById("eval_steps").value),
+                save_steps: parseInt(document.getElementById("save_steps").value),
+                logging_steps: parseInt(document.getElementById("logging_steps").value)
+            };
+
+            const btn = configForm.querySelector("button[type='submit']");
+            const alertBox = document.getElementById("configAlert");
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> 저장 중...';
+
+            try {
+                const resp = await fetch("/genai-api/config", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
                 const data = await resp.json();
 
                 if (data.success) {
-                    policyResultBox.textContent = data.result;
+                    alertBox.style.display = "block";
+                    alertBox.className = "alert alert-success text-center";
+                    alertBox.textContent = "✅ 설정 파일(training_config.json)이 생성되었습니다!";
+                    setTimeout(() => { alertBox.style.display = "none"; }, 3000);
                 } else {
-                    policyResultBox.textContent =
-                        data.error || "정책 아이디어 생성 중 오류가 발생했습니다.";
+                    alert("오류: " + data.error);
                 }
             } catch (err) {
                 console.error(err);
-                policyResultBox.textContent =
-                    "요청 처리 중 오류가 발생했습니다.";
+                alert("서버 통신 오류");
             } finally {
-                policyBtn.disabled = false;
-                policyBtn.innerText = originalText;
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-save"></i> 설정 저장 및 Config 파일 생성';
             }
         });
     }
 });
-
-// 지표 설명 생성
-const explainInput = document.getElementById("explain-input");
-const explainBtn = document.getElementById("explain-generate-btn");
-const explainResult = document.getElementById("explain-result");
-
-if (explainBtn && explainInput && explainResult) {
-    explainBtn.addEventListener("click", async () => {
-        const text = explainInput.value.trim();
-        if (!text) {
-            explainResult.innerText = "지표나 질문을 입력해 주세요.";
-            return;
-        }
-
-        explainResult.innerText = "생성 중...";
-
-        try {
-            const resp = await fetch("/genai-api/explain", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ prompt: text }),
-            });
-
-            const data = await resp.json();
-
-            if (data.success) {
-                explainResult.innerText = data.result || "(응답이 비어 있습니다.)";
-            } else {
-                explainResult.innerText = data.error || "지표 설명 생성 중 오류가 발생했습니다.";
-            }
-        } catch (err) {
-            console.error(err);
-            explainResult.innerText = "서버 통신 중 오류가 발생했습니다.";
-        }
-    });
-}
-
-// NER 분석
-const nerInput = document.getElementById("ner-input");
-const nerBtn = document.getElementById("ner-generate-btn");
-const nerResult = document.getElementById("ner-result");
-
-if (nerInput && nerBtn && nerResult) {
-    nerBtn.addEventListener("click", async () => {
-        const text = nerInput.value.trim();
-        if (!text) {
-            nerResult.innerText = "분석할 문장을 입력해 주세요.";
-            return;
-        }
-
-        nerResult.innerText = "분석 중...";
-
-        try {
-            const resp = await fetch("/genai-api/ner", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ text: text }),
-            });
-
-            const data = await resp.json();
-
-            if (!data.success) {
-                nerResult.innerText =
-                    data.error || "NER 분석 중 오류가 발생했습니다.";
-                return;
-            }
-
-            const items = data.items || [];
-            if (items.length === 0) {
-                nerResult.innerText = "인식된 개체명이 없습니다.";
-                return;
-            }
-
-            // 간단한 리스트 HTML로 렌더링
-            let html = "<ul class=\"mb-0\">";
-            for (const ent of items) {
-                const word = ent.word || "";
-                const type = ent.type || "";
-                const score = ent.score != null ? ent.score.toFixed(4) : "";
-                html += `<li><strong>${word}</strong> (${type}) - score: ${score}</li>`;
-            }
-            html += "</ul>";
-            nerResult.innerHTML = html;
-        } catch (err) {
-            console.error(err);
-            nerResult.innerText = "서버 통신 중 오류가 발생했습니다.";
-        }
-    });
-}
-
-// AI Q&A
-const qaInput = document.getElementById("qa-input");
-const qaBtn = document.getElementById("qa-generate-btn");
-const qaResult = document.getElementById("qa-result");
-
-if (qaInput && qaBtn && qaResult) {
-    qaBtn.addEventListener("click", async () => {
-        const question = qaInput.value.trim();
-        if (!question) {
-            qaResult.innerText = "질문을 입력해 주세요.";
-            return;
-        }
-
-        qaResult.innerText = "생성 중...";
-
-        try {
-            const resp = await fetch("/genai-api/qa", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    question: question,
-                    page: "genai"
-                }),
-            });
-
-            const data = await resp.json();
-
-            if (data.success) {
-                qaResult.innerText = data.result || "(응답이 비어 있습니다.)";
-            } else {
-                qaResult.innerText = data.error || "AI Q&A 생성 중 오류가 발생했습니다.";
-            }
-        } catch (err) {
-            console.error(err);
-            qaResult.innerText = "서버 통신 중 오류가 발생했습니다.";
-        }
-    });
-}
-
