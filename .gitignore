@@ -19,7 +19,7 @@ venv/
 # Logs
 *.log
 
-# Oracle / secrets (만약 나중에 env 추가하면)
+# Oracle / secrets
 *.env
 
 # 임시파일 깃에 안 잡히게 하기

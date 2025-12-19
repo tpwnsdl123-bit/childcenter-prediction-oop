@@ -10,6 +10,7 @@ from transformers import pipeline
 
 from pybo import db
 from pybo.models import GenAIChatLog, RegionForecast
+from pybo.service.rag_service import RagService
 
 # .env 파일 로드
 load_dotenv()
@@ -57,7 +58,10 @@ class GenAIService:
     def __init__(self) -> None:
         # API URL 로드
         self.api_url = os.getenv("RUNPOD_API_URL")
-        self.timeout = 60
+        self.timeout = 180
+
+        # RAG 서비스 인스턴스 생성
+        self.rag_service = RagService()
 
         if not self.api_url:
             print("경고: .env 파일에서 RUNPOD_API_URL을 찾을 수 없습니다.")
@@ -82,7 +86,7 @@ class GenAIService:
         print(f"추론 설정 변경됨: Temp={self.settings['temperature']}")
 
         # Training 학습 설정 파일 생성
-        # UI에서 받은 10개 값 + UI에서 뺀 고정값(batch 등)을 합쳐서 저장
+        # UI에서 받은 10개 값 + UI에서 뺀 고정값을 합쳐서 저장
         training_args_config = {
             # UI에서 온 값들
             "max_steps": new_settings.get("max_steps", 300),
@@ -261,13 +265,33 @@ class GenAIService:
     def answer_qa(self, question: str, *, district: str | None = None, start_year: int | None = None,
                   end_year: int | None = None) -> str:
         user_q = (question or "").strip()
+
+        # 기존 로직에 따라 메타 데이터와 수치 컨텍스트를 생성함
         meta = self._build_meta_with_overrides(user_q, district=district, start_year=start_year, end_year=end_year)
-        context = self._build_forecast_context(meta)
+        db_context = self._build_forecast_context(meta)
 
-        instruction = "너는 서울시 아동 정책 Q&A 봇이야. 데이터를 근거로 답변해 줘."
-        input_text = f"{context}\n\n질문: {user_q}"
+        # RAG를 통해 여러 PDF 지침서에서 관련 내용을 찾아옴
+        pdf_context = self.rag_service.get_relevant_context(user_q)
 
-        return self._call_llama3(instruction, input_text, max_tokens=400)
+        # 질문에 상관없이 적용되는 범용 전문가 가드레일 프롬프트임
+        instruction = (
+            "너는 서울시 아동 정책 및 지역아동센터 운영 전문가야. 아래의 답변 원칙을 엄격히 준수해.\n\n"
+            "1. 모든 답변은 제공된 [통계 데이터]와 [운영 지침]의 내용에만 근거해야 함.\n"
+            "2. [운영 지침]에서 질문과 관련된 직접적인 수치나 명시적 문구가 없다면, 절대로 추측하여 계산하거나 답하지 말 것.\n"
+            "3. 특히 '시설 운영비'와 종사자의 '인건비(급여)'는 완전히 다른 항목이므로 이를 혼동하여 답변하지 말 것.\n"
+            "4. 근거를 찾을 수 없는 경우 '현재 제공된 지침서 및 데이터에서는 관련 내용을 확인할 수 없습니다'라고 솔직하게 답변할 것.\n"
+            "5. 답변은 반드시 한국어로 작성하며, 전문가다운 신뢰감 있는 어조를 유지할 것.")
+
+
+        # AI에게 전달할 최종 입력 텍스트를 구성함
+        input_text = (
+            f"[통계 데이터]\n{db_context}\n\n"
+            f"[운영 지침]\n{pdf_context}\n\n"
+            f"질문: {user_q}")
+
+
+        # 설정된 타임아웃과 파라미터로 라마3 모델을 호출함
+        return self._call_llama3(instruction, input_text, max_tokens=600)
 
     def answer_qa_with_log(self, question: str, *, user_id: int | None = None, page: str | None = None,
                            district: str | None = None, start_year: int | None = None,
@@ -278,9 +302,6 @@ class GenAIService:
 
     # NER (개체명 인식)
     def analyze_ner(self, text: str) -> list[dict]:
-        """
-        Hugging Face 파이프라인을 사용해 텍스트에서 개체명(인물, 기관, 장소 등)을 추출
-        """
         if not self.ner_pipeline or not text:
             return []
 

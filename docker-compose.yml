@@ -1,11 +1,13 @@
 version: '3.8'
 services:
   flask-app:
+    build: .
     image: ksejun/my-flask-app:v1
     ports:
       - "5000:5000"
     volumes:
       - .:/app
+      - ./data/chroma_db:/app/data/chroma_db
     env_file:
       - .env
     dns:
