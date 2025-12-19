@@ -22,5 +22,8 @@ venv/
 # Oracle / secrets
 *.env
 
+# chroma_db
+data/chroma_db/
+
 # 임시파일 깃에 안 잡히게 하기
 ~$*
