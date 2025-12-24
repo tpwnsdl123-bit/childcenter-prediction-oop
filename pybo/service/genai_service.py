@@ -12,7 +12,6 @@ from pybo import db
 from pybo.models import GenAIChatLog, RegionForecast
 from pybo.service.rag_service import RagService
 
-# .env 파일 로드
 load_dotenv()
 
 DISTRICTS = [
@@ -39,7 +38,6 @@ class QueryMeta:
 
 
 class GenAIService:
-    # 서버 메모리에 저장되는 기본 하이퍼파라미터
     settings = {
         "temperature": 0.35,
         "max_tokens": 600,
@@ -56,13 +54,22 @@ class GenAIService:
     }
 
     def __init__(self) -> None:
-        self.api_url = os.getenv("RUNPOD_API_URL")
+        # 오라클 클라우드 환경 변수에서 팟 ID를 가져옵니다.
+        self.ai_pod_id = os.getenv("AI_POD_ID")
+        self.api_key = os.getenv("RUNPOD_API_KEY")
+
+        # 런포드 팟 프록시 URL 설정
+        if self.ai_pod_id:
+            self.api_url = f"https://{self.ai_pod_id}-8000.proxy.runpod.net/generate"
+            print(f"GenAIService: 런포드 팟 모드 활성화. 주소: {self.api_url}")
+        else:
+            self.api_url = os.getenv("RUNPOD_API_URL")
+            print("GenAIService: 기본 API URL 사용 중.")
+
         self.timeout = 180
         self.rag_service = RagService()
 
-        if not self.api_url:
-            print("경고: .env 파일에서 RUNPOD_API_URL을 찾을 수 없습니다.")
-
+        # NER 모델 로딩
         print("NER 모델을 로딩 중입니다...")
         try:
             self.ner_pipeline = pipeline("ner", model="Leo97/KoELECTRA-small-v3-modu-ner")
@@ -77,49 +84,31 @@ class GenAIService:
         if "max_tokens" in new_settings:
             self.settings["max_tokens"] = new_settings["max_tokens"]
 
-        training_args_config = {
-            "max_steps": new_settings.get("max_steps", 300),
-            "evaluation_strategy": new_settings.get("evaluation_strategy", "steps"),
-            "save_strategy": new_settings.get("save_strategy", "steps"),
-            "learning_rate": new_settings.get("learning_rate", "1e-4"),
-            "optim": new_settings.get("optim", "paged_adamw_8bit"),
-            "weight_decay": new_settings.get("weight_decay", 0.01),
-            "warmup_steps": new_settings.get("warmup_steps", 20),
-            "eval_steps": new_settings.get("eval_steps", 20),
-            "save_steps": new_settings.get("save_steps", 40),
-            "logging_steps": new_settings.get("logging_steps", 1),
-            "per_device_train_batch_size": 1,
-            "gradient_accumulation_steps": 8,
-            "output_dir": "/workspace/finetune/outputs_llama3_c2",
-            "load_best_model_at_end": True,
-            "metric_for_best_model": "eval_loss",
-            "greater_is_better": False,
-            "bf16": True,
-            "report_to": "none"
-        }
-
-        try:
-            with open("training_config.json", "w", encoding="utf-8") as f:
-                json.dump(training_args_config, f, indent=4)
-        except Exception as e:
-            print(f"파일 저장 실패: {e}")
-
     def _call_llama3(self, instruction: str, input_text: str, max_tokens: int = None) -> str:
         final_max_tokens = max_tokens if max_tokens else self.settings["max_tokens"]
-        headers = {'Content-Type': 'application/json'}
+
+        # Llama 3 프롬프트 템플릿 적용
+        prompt = f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n{instruction}<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{input_text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {self.api_key}'
+        }
+
+        # 팟 추론 서버용 페이로드 구성
         payload = {
-            "instruction": instruction,
-            "input": input_text,
-            "max_new_tokens": final_max_tokens,
+            "prompt": prompt,
+            "max_tokens": final_max_tokens,
             "temperature": self.settings["temperature"],
-            "do_sample": True
+            "stop": ["<|eot_id|>"]
         }
 
         try:
             response = requests.post(self.api_url, headers=headers, json=payload, timeout=self.timeout)
             response.raise_for_status()
             result = response.json()
-            return result.get("text", "").strip().replace('\r', '')
+            # 팟 서버 응답 구조에서 텍스트 추출
+            return result.get("text", result.get("generated_text", "")).strip().replace('\r', '')
         except Exception as e:
             print(f"RunPod Error: {e}")
             return "죄송합니다. AI 서버와 연결할 수 없습니다."

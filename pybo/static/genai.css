@@ -164,36 +164,46 @@ body {
 
 /* 채팅창 스타일 */
 .qa-chat-window {
-    background: #edf2f7; /* 채팅창 배경 약간 어둡게 */
+    background: #edf2f7; /* 채팅창 배경 */
     border: 1px solid #e2e8f0;
     border-radius: 16px;
     height: 450px;
-    overflow-y: auto;
+    overflow-y: auto; /* 스크롤 기능 */
+
+    /* 말풍선 정렬을 위한 플렉스박스 설정 */
+    display: flex;
+    flex-direction: column;
+    padding: 20px; /* 내부 여백 추가 */
 }
 
 .chat-bubble {
-    max-width: 85%;
+    /* 말풍선 너비와 정렬 설정 */
+    max-width: 75%; /* 너무 넓어지지 않게 제한 */
+    width: fit-content; /* 내용만큼만 너비 차지 */
     padding: 12px 18px;
-    border-radius: 18px;
+    border-radius: 20px; /* 조금 더 둥글게 */
     font-size: 0.95rem;
-    margin-bottom: 10px;
-    line-height: 1.6;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    margin-bottom: 12px;
+    line-height: 1.5;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    word-break: break-word; /* 긴 단어 줄바꿈 */
 }
 
+/* AI 답변 (왼쪽 정렬) */
 .ai-bubble {
     background: #ffffff !important;
     color: #2d3748 !important;
-    align-self: flex-start;
-    border-bottom-left-radius: 4px;
+    align-self: flex-start; /* 왼쪽으로 붙임 */
+    border-bottom-left-radius: 4px; /* 왼쪽 하단 모서리만 각지게 */
     border: 1px solid #e2e8f0;
 }
 
+/* 사용자 질문 (오른쪽 정렬) */
 .user-bubble {
-    background: linear-gradient(135deg, #3182ce, #63b3ed) !important;
+    background: linear-gradient(135deg, #3182ce, #63b3ed) !important; /* 기존 파란색 그라데이션 유지 */
     color: #ffffff !important;
-    align-self: flex-end;
-    border-bottom-right-radius: 4px;
+    align-self: flex-end; /* 오른쪽으로 붙임 */
+    border-bottom-right-radius: 4px; /* 오른쪽 하단 모서리만 각지게 */
 }
 
 .chat-input {
@@ -231,3 +241,163 @@ body {
 .config-desc { color: #718096; }
 .highlight { color: #3182ce; font-weight: 700; }
 .admin-badge { background: #e53e3e; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 700; }
+
+/* 모델 학습 단계 선택창 */
+.model-compare-selector {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e9ecef;
+    margin-bottom: 30px;
+    position: relative;
+    overflow: hidden;
+}
+
+.model-compare-selector h6 {
+    color: #1a233a;
+    font-weight: 800;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+}
+
+.model-compare-selector h6 i {
+    margin-right: 10px;
+    color: #3182ce;
+}
+
+/* 버튼 그룹 테두리 및 디자인 */
+.model-compare-selector .btn-group {
+    background: #f1f5f9;
+    padding: 6px;
+    border-radius: 14px;
+    display: flex;
+    gap: 8px;
+}
+
+.model-compare-selector .btn {
+    border: none !important;
+    border-radius: 10px !important;
+    padding: 12px 20px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #718096;
+    background: transparent;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    flex: 1;
+}
+
+/* 미학습 모델 활성화 시 (회색) */
+input[value="base"]:checked + label {
+    background: #718096 !important;
+    color: #fff !important;
+    box-shadow: 0 4px 12px rgba(113, 128, 150, 0.3);
+}
+
+/* 기초 학습 모델 활성화 시 (청록색) */
+input[value="cp40"]:checked + label {
+    background: #38b2ac !important;
+    color: #fff !important;
+    box-shadow: 0 4px 12px rgba(56, 178, 172, 0.3);
+}
+
+/* 중간 학습 모델 활성화 시 (초록색) */
+input[value="cp80"]:checked + label {
+    background: #48bb78 !important;
+    color: #fff !important;
+    box-shadow: 0 4px 12px rgba(72, 187, 120, 0.3);
+}
+
+/* 최종 모델 활성화 시 (사이드바와 동일한 파란색) */
+input[value="final"]:checked + label {
+    background: #3182ce !important;
+    color: #fff !important;
+    box-shadow: 0 4px 12px rgba(49, 130, 206, 0.3);
+}
+
+/* 호버 효과 */
+.model-compare-selector .btn:not(.active):hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: #2d3748;
+}
+
+/* 도움말 텍스트 스타일 */
+.model-compare-selector .small {
+    color: #a0aec0 !important;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+
+/* 모바일 반응형 최적화 (768px 이하) */
+@media (max-width: 768px) {
+    /* 사이드바가 본문을 가리지 않도록 위치 강제 수정 */
+    .genai-sidebar {
+        position: relative !important; /* 둥둥 떠다니는 현상 방지 */
+        width: 100% !important;        /* 가로 꽉 채우기 */
+        padding: 15px !important;
+        margin-bottom: 20px !important; /* 본문 카드와 간격 확보 */
+        box-shadow: none;               /* 모바일에서는 그림자 제거로 깔끔하게 */
+    }
+
+    /* 세로 메뉴를 가로 스크롤 메뉴로 변경 */
+    .sidebar-nav {
+        flex-direction: row !important; /* 가로 배열 */
+        overflow-x: auto;              /* 옆으로 밀어서 보기 */
+        display: flex !important;
+        -webkit-overflow-scrolling: touch; /* 부드러운 스크롤 */
+    }
+
+    .sidebar-nav .nav-item {
+        margin-right: 10px;
+        margin-bottom: 0;
+    }
+
+    .sidebar-nav .nav-link {
+        padding: 8px 15px;
+        font-size: 0.85rem;
+        white-space: nowrap; /* 글자 줄바꿈 방지 (한 줄 유지) */
+    }
+
+    /* 히어로 섹션(배경) 높이 조절 */
+    .hero-genai {
+        height: 200px !important; /* 모바일에서는 배경 높이를 줄여서 본문이 바로 보이게 */
+    }
+
+    /* 메인 컨텐츠 영역 조정 */
+    .genai-wrapper {
+        padding: 10px;
+        margin-top: 0 !important;
+    }
+
+    .genai-main-card {
+        margin-top: 0;
+    }
+
+    .genai-main-card .card-body {
+        padding: 1.25rem !important;
+    }
+
+    /* 채팅창 높이 조절 */
+    .qa-chat-window {
+        height: 350px;
+    }
+
+        .model-compare-selector {
+        padding: 15px;
+    }
+
+    .model-compare-selector .btn-group {
+        overflow-x: auto;
+        padding: 4px;
+    }
+
+    .model-compare-selector .btn {
+        padding: 8px 12px;
+        font-size: 0.8rem;
+        min-width: 100px;
+    }
+}

@@ -1,6 +1,6 @@
 services:
   db:
-    image: gvenzl/oracle-xe:11
+    image: ksejun/oracle-xe:11
     container_name: oracle-db
     ports:
       - "1521:1521"
@@ -8,9 +8,9 @@ services:
       - ORACLE_PASSWORD=oracle
     shm_size: '1gb'
     volumes:
-      # [필수 수정] /u01/app/oracle 전체가 아니라 /oradata 폴더만 연결해야 합니다.
+      # /u01/app/oracle 전체가 아니라 /oradata 폴더만 연결해야 합니다.
       - ./oracle_data:/u01/app/oracle/oradata
-      # [확인] 덤프 파일이 있는 현재 폴더(.)를 오라클의 dpdump 경로에 연결합니다.
+      # 덤프 파일이 있는 현재 폴더(.)를 오라클의 dpdump 경로에 연결합니다.
       - .:/u01/app/oracle/admin/XE/dpdump
 
   flask-app:

@@ -13,6 +13,25 @@
     </div>
 </section>
 
+<div class="model-compare-selector mb-4 p-3 border rounded shadow-sm bg-white">
+    <h6 class="mb-3 text-dark font-weight-bold"><i class="bi bi-layers-half"></i> 모델 학습 단계 선택</h6>
+    <div class="btn-group w-100" data-toggle="buttons">
+        <label class="btn btn-outline-secondary">
+            <input type="radio" name="modelVersion" value="base"> 1. 미학습 모델
+        </label>
+        <label class="btn btn-outline-info">
+            <input type="radio" name="modelVersion" value="cp40"> 2. 기초 학습 모델
+        </label>
+        <label class="btn btn-outline-success">
+            <input type="radio" name="modelVersion" value="cp80"> 3. 중간 학습 모델
+        </label>
+        <label class="btn btn-outline-primary active">
+            <input type="radio" name="modelVersion" value="final" checked> 4. 최종 모델
+        </label>
+    </div>
+    <p class="small text-muted mt-2 mb-0">* 각 단계를 선택하고 답변의 차이를 비교해보세요.</p>
+</div>
+
 <div class="container genai-wrapper mt-4 mb-5">
     <div class="row">
         <div class="col-md-3 mb-4 mb-md-0">
@@ -109,9 +128,6 @@
                                 <div class="spinner-border text-light" role="status"></div>
                                 <p class="mt-2 font-weight-bold text-light">데이터를 분석 중입니다...</p>
                             </div>
-                            <div id="reportPlaceholder" class="genai-result-placeholder mt-5 p-4 text-center">
-                                결과가 여기에 표시됩니다.
-                            </div>
                             <div id="resultSection" style="display: none;" class="mt-5 pt-4 border-top">
                                 <h2 id="aiTitle" class="ai-report-title mb-4"></h2>
                                 <div class="ai-summary-box mb-4">
@@ -133,10 +149,7 @@
                                     <i class="bi bi-lightbulb mr-2"></i> 아이디어 생성
                                 </button>
                             </div>
-                            <div id="policyPlaceholder" class="genai-result-placeholder mt-5 p-4 text-center">
-                                결과가 여기에 표시됩니다.
-                            </div>
-                            <div id="policyResultArea" style="display:none;" class="genai-result-card mt-5 p-4 result-text-box" id="policy-result"></div>
+                            <div id="policyResultArea" style="display:none;" class="genai-result-card mt-5 p-4 result-text-box"></div>
                         </div>
 
                         <div class="tab-pane fade" id="qa" role="tabpanel">
