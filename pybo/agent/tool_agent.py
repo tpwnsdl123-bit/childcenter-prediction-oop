@@ -1,143 +1,179 @@
 import json
 import re
+from typing import Optional, Tuple, Dict, Any
 from pybo.agent.tool_client import ToolClient
+
 
 class ToolAgent:
     """도구를 사용하여 자율적으로 사고하고 답변하는 에이전트 엔진"""
-    
-    def __init__(self, llm_callback, max_iterations: int = 3):
-        """
-        :param llm_callback: LLM을 호출할 수 있는 콜백 함수 (instruction, input -> response)
-        :param max_iterations: 최대 루프 반복 횟수
-        """
+
+    def __init__(self, llm_callback, max_iterations: int = 2):
         self.tool_client = ToolClient()
         self.llm_callback = llm_callback
         self.max_iterations = max_iterations
 
-    def run(self, query: str, instruction: str, history=None) -> str:
-        """사용자의 질문에 대해 에이전트 루프를 실행합니다."""
-        context = ""
-        if history:
-            context = "### 대화 기록 (History):\n" + "\n".join(history[-4:]) + "\n\n"
-        
-        current_chain = f"{context}사용자 질문: {query}\n"
-        
+    def run(
+        self,
+        query: str,
+        instruction: str,
+        mode: str = "qa",
+        model_version: str = "final",
+        **kwargs,
+    ) -> str:
+        current_chain = f"사용자 질문: {query}\n"
+        executed_action = False
+
         for i in range(self.max_iterations):
-            # LLM 호출 - 접두어를 주어 ReAct 유도
             llm_input = f"{current_chain}\nThought: "
-            response_text = self.llm_callback(instruction, llm_input) or ""
-            
-            # 모델이 아무것도 답변하지 않는 경우 (예: Thought: 뒤가 비어있음)
-            if not response_text.strip():
-                print(f"[Warning] Empty LLM response in loop {i+1}. Nudging...")
-                current_chain += f"\nThought: (이곳에 질문에 대한 분석을 적거나 바로 답변하십시오.)"
+
+            try:
+                raw = (self.llm_callback(instruction, llm_input, model_version=model_version, **kwargs) or "").strip()
+            except TypeError:
+                raw = (self.llm_callback(instruction, llm_input, **kwargs) or "").strip()
+
+            if not raw:
+                current_chain += (
+                    "\n시스템: 출력이 비었습니다. 반드시 아래 중 하나로만 답하세요.\n"
+                    "1) Action: <tool>\nAction Input: {...JSON...}\n"
+                    "2) Final Answer: <한국어 답변>\n"
+                )
                 continue
 
-            # 모델이 자체적으로 'Thought:'를 포함해서 답하는 경우 처리
-            if response_text.lstrip().startswith("Thought:"):
-                response = response_text.strip()
-            else:
-                response = "Thought: " + response_text.strip()
-            
-            # 할루시네이션 방지: 모델이 Observation: 혹은 다음 질문을 지어내면 잘라냄
-            # '### Input:' 등 불필요한 흔적 추가 제거
-            for stop_word in ["Observation:", "사용자 질문:", "질문:", "Q:", "A:", "### Input:", "###"]:
-                if stop_word in response:
-                    response = response.split(stop_word)[0].strip()
+            print(f">>> [Turn {i+1}] LLM Raw Response:\n{raw}\n---")
 
-            print(f"[ToolAgent Loop {i+1}] LLM Response:\n{response}")
-            
-            # 1. 최종 답변 확인
-            if "Final Answer:" in response:
-                ans = response.split("Final Answer:")[1].strip()
-                # 임무상황(보고서/정책)이 아닐 때는 짧은 답변도 허용
-                is_mission = "지시상황" in query or "임무" in query
-                if not is_mission and len(ans) > 0:
-                    return ans
-                
-                # 답변 내용이 너무 부실하거나 빈 경우 (QA 루프 방지)
-                if len(ans) < 5:
-                    print("[Warning] Final Answer is too short. Requesting substance.")
-                    current_chain += f"\n{response}\n시스템: 'Final Answer:' 뒤에 실질적이고 구체적인 답변 내용을 한국어로 작성하십시오."
-                    continue
-                return ans
+            response = raw if raw.lstrip().startswith("Thought:") else ("Thought: " + raw)
 
-            # 2. 일반 QA에 대한 암시적 답변 허용 (Report/Policy 임무가 아닐 때만)
-            if "Action:" not in response:
-                if "지시상황" not in query and "임무" not in query:
-                    clean_ans = response.replace("Thought:", "").strip()
-                    # 모델이 '시스템:' 지침을 앵무새처럼 따라하지 않았는지 확인
-                    if len(clean_ans) > 2 and "시스템:" not in clean_ans:
-                        print("[Info] Detected implicit answer for general QA. Returning...")
-                        return clean_ans
-            
-            # 3. Action 파싱 및 도구 실행
-            try:
-                if "Action:" in response:
-                    tool_name, tool_input = self._parse_action(response)
-                    
-                    print(f"--- [Agent Action EXEC] {tool_name}({tool_input}) ---")
+            action_block = self._extract_action_block(response)
+            if action_block:
+                try:
+                    tool_name, tool_input = self._parse_action(action_block)
+                    tool_input = self._inject_model_version(tool_name, tool_input, model_version)
+
+                    print(f">>> [Turn {i+1}] Calling Tool: {tool_name} with {tool_input}")
                     observation = self.tool_client.call_tool(tool_name, tool_input)
-                    
-                    # 결과를 체인에 추가하고 다음 Thought 유도
-                    current_chain += f"\n{response}\nObservation: {observation}\n"
-                else:
-                    # 루프 마지막인데도 Action/Final Answer가 없으면 본문을 답변으로 간주
-                    if i == self.max_iterations - 1:
-                        # 인사말 등에서 시스템 지침이 섞여나가지 않게 필터링
-                        final_text = response.replace("Thought:", "").strip()
-                        if "시스템:" in final_text:
-                            final_text = final_text.split("시스템:")[0].strip()
-                        return final_text
-                    
-                    # 형식을 지키도록 재요구 (더 구체적으로 표현)
-                    current_chain += f"\n{response}\n시스템: 다음 단계는 'Action: <도구명>'과 'Action Input: {{...}}'를 사용하여 도구를 호출하거나, 'Final Answer: <답변>'으로 마무리하는 것입니다."
-            except Exception as e:
-                print(f"[ToolAgent Error] {e}")
-                current_chain += f"\n{response}\nObservation: 오류 발생({str(e)}). 한 번에 하나의 Action만 JSON 형식으로 제출하십시오.\n"
+                    executed_action = True
+
+                    current_chain += (
+                        f"\nAction: {tool_name}\n"
+                        f"Action Input: {json.dumps(tool_input, ensure_ascii=False)}\n"
+                        f"Observation: {observation}\n"
+                    )
+                    continue
+
+                except Exception as e:
+                    print(f">>> [Turn {i+1}] Tool Call Error: {str(e)}")
+                    current_chain += (
+                        f"\nObservation: 오류 발생({str(e)}).\n"
+                        "시스템: Action Input은 반드시 JSON 하나만, 키/값은 큰따옴표로 작성하세요.\n"
+                        "예) Action: rag_search\nAction Input: {\"question\": \"...\"}\n"
+                    )
+                    continue
+
+            final_ans = self._extract_final_answer(response)
+            if final_ans:
+                final_ans = final_ans.strip()
+                print(f">>> [Turn {i+1}] Found Final Answer: {final_ans[:100]}...")
+
+                return final_ans
+
+            # QA 모드에서 형식을 못 지켰을 때의 보완책 (암시적 답변 허용)
+            if mode == "qa":
+                clean_ans = response.replace("Thought:", "").strip()
+                # 시스템 메시지가 섞이지 않았고 실질적인 내용이 있으면 그냥 리턴
+                if len(clean_ans) > 5 and "시스템:" not in clean_ans:
+                    print(f">>> [Turn {i+1}] Implicit QA Answer Accepted.")
+                    return clean_ans
+
+            if i == self.max_iterations - 1:
+                return "AI 서버 응답 지연/오류로 도구 호출을 완료하지 못했습니다. 잠시 후 다시 시도해주세요."
+
+            current_chain += (
+                "\n시스템: 다음 형식을 정확히 지켜주세요.\n"
+                "Action: <도구명>\nAction Input: { ...JSON... }\n"
+                "또는\nFinal Answer: <한국어 최종 답변>\n"
+            )
 
         return "미안해, 답변을 생성하는 데 실패했어. 다시 한번 물어봐 줄래?"
 
-    def _parse_action(self, response: str) -> tuple:
-        """LLM의 응답에서 첫 번째 도구 이름과 인자를 정규표현식으로 정교하게 추출합니다."""
-        # Action: 뒤의 도구명 추출
-        action_match = re.search(r"Action:\s*(\w+)", response)
+    def _inject_model_version(self, tool_name: str, tool_input: Dict[str, Any], model_version: str) -> Dict[str, Any]:
+        if tool_name in ("llama_generate",):
+            if isinstance(tool_input, dict) and "model_version" not in tool_input:
+                tool_input["model_version"] = model_version
+        return tool_input
+
+    def _extract_action_block(self, text: str) -> Optional[str]:
+        # 'Action:'부터 시작해서 텍스트 끝까지를 가져옵니다. (내부의 _parse_action이 실제 JSON을 찾음)
+        m = re.search(r"Action:.*?\s*Action Input:.*", text, re.DOTALL | re.IGNORECASE)
+        if m:
+            return m.group(0).strip()
+        return None
+
+    def _extract_final_answer(self, text: str) -> Optional[str]:
+        # 'Final Answer:' 인식을 더 유연하게 (따옴표 포함 등)
+        m = re.search(r"['\"]?Final Answer:['\"]?\s*(.*)", text, re.DOTALL | re.IGNORECASE)
+        if not m:
+            return None
+        ans = m.group(1).strip()
+        # 앞뒤에 남은 따옴표 제거 (따옴표로 전체를 감싸는 경우가 있음)
+        ans = re.sub(r"^['\"]|['\"]$", "", ans).strip()
+        if "Action:" in ans:
+            ans = ans.split("Action:")[0].strip()
+        return ans
+
+    def _needs_evidence(self, q: str) -> bool:
+        keywords = [
+            "법", "법령", "지침", "근거", "조항", "규정", "자료", "통계", "수치", "증가", "감소", "추세",
+            "원인", "이유", "정책", "지원금", "예산", "사업", "제도", "기준", "대상", "조건"
+        ]
+        q = (q or "").strip()
+        return any(k in q for k in keywords) and len(q) >= 6
+
+    def _parse_action(self, response: str) -> Tuple[str, dict]:
+        action_match = re.search(r"Action:\s*(\w+)", response, re.IGNORECASE)
         if not action_match:
             raise ValueError("응답에서 Action 도구명을 찾을 수 없습니다.")
         tool_name = action_match.group(1).strip()
 
-        # Action Input: 뒤의 JSON 블록 추출
-        # Llama3가 여러 개의 JSON을 출력하는 경우를 대비해 첫 번째 블록만 추출
         if "Action Input:" not in response:
             raise ValueError("Action Input 항목을 찾을 수 없습니다.")
-            
-        content_after_action = response.split("Action Input:")[1]
-        
-        # 중괄호 균형을 맞춰서 첫 번째 완결된 JSON 블록 찾기
+
+        content_after_action = response.split("Action Input:", 1)[1]
+
         brace_count = 0
         json_start = -1
         json_end = -1
-        
-        for i, char in enumerate(content_after_action):
-            if char == '{':
+
+        for i, ch in enumerate(content_after_action):
+            if ch == "{":
                 if brace_count == 0:
                     json_start = i
                 brace_count += 1
-            elif char == '}':
-                brace_count -= 1
-                if brace_count == 0:
-                    json_end = i + 1
-                    break
-        
+            elif ch == "}":
+                if brace_count > 0:
+                    brace_count -= 1
+                    if brace_count == 0:
+                        json_end = i + 1
+                        break
+
         if json_start == -1 or json_end == -1:
             raise ValueError("Action Input에서 유효한 JSON 중괄호 블록을 찾을 수 없습니다.")
-            
+
         json_str = content_after_action[json_start:json_end].strip()
-        
+
+        # 기본적인 전처리 (중첩 중괄호 {{...}} -> {...} 보정, 작은따옴표 -> 큰따옴표 등)
+        pre_cleaned = json_str
+        if pre_cleaned.startswith("{{") and pre_cleaned.endswith("}}"):
+            pre_cleaned = pre_cleaned[1:-1]
+            
+        if "'" in pre_cleaned and '"' not in pre_cleaned:
+            pre_cleaned = pre_cleaned.replace("'", '"')
+
         try:
-            # 큰 따옴표 교체 (Llama3 실수 보정)
-            if "'" in json_str and '"' not in json_str:
-                json_str = json_str.replace("'", '"')
-            return tool_name, json.loads(json_str)
+            return tool_name, json.loads(pre_cleaned)
         except json.JSONDecodeError:
-            raise ValueError(f"JSON 파싱 실패: {json_str}")
+            try:
+                # 후행 쉼표 제거 ( ,} -> } )
+                fixed = re.sub(r",\s*}", "}", pre_cleaned)
+                return tool_name, json.loads(fixed)
+            except Exception:
+                raise ValueError(f"JSON 파싱 실패: {json_str}")

@@ -1,14 +1,14 @@
 document.addEventListener("DOMContentLoaded", function () {
 
-    // 모델 설정 데이터
+    // 모델 상태 표시용 데이터 (UI용)
     const modelHistory = {
-        base:  { max_steps: 0,   readonly: true,  msg: "미학습 모델: Llama-3 순정 상태입니다." },
-        cp100: { max_steps: 100, readonly: true,  msg: "초기 학습: 말투가 조금씩 변하기 시작합니다." },
-        cp200: { max_steps: 200, readonly: true,  msg: "중간 학습: 지시 이행 능력이 향상되었습니다." },
+        base: { max_steps: 0, readonly: true, msg: "미학습 모델: Llama-3 기본 상태입니다." },
+        cp100: { max_steps: 100, readonly: true, msg: "초기 학습: 말투가 조금씩 변하기 시작합니다." },
+        cp200: { max_steps: 200, readonly: true, msg: "중간 학습: 지시 이행 능력이 향상되었습니다." },
         final: { max_steps: 300, readonly: false, msg: "최종 모델: 300스텝 학습이 완료된 최적화 상태입니다." }
     };
 
-    // UI 요소 변수 선언
+    // UI 요소
     const reportForm = document.getElementById("reportForm");
     const resultSection = document.getElementById("resultSection");
     const loadingSpinner = document.getElementById("loadingSpinner");
@@ -16,19 +16,29 @@ document.addEventListener("DOMContentLoaded", function () {
     const aiSummary = document.getElementById("aiSummary");
     const aiContent = document.getElementById("aiContent");
 
-    // 모델 교체 및 UI 업데이트 함수 (수정됨)
+    function getModelVer() {
+        return document.querySelector('input[name="modelVersion"]:checked')?.value || "final";
+    }
+
+    function getSelectedDistrict() {
+        return document.getElementById("regionSelect")?.value || "전체";
+    }
+
+    // 모델 교체 + UI 업데이트
+    // ※ switch-model은 RunPod가 전역 모델 스위치를 지원할 때만 의미 있음.
     async function updateModelSettingsUI() {
         const selected = document.querySelector('input[name="modelVersion"]:checked');
         const ver = selected ? selected.value : "final";
-        const config = modelHistory[ver];
+        const config = modelHistory[ver] || modelHistory["final"];
         const reportBtn = reportForm ? reportForm.querySelector("button[type='submit']") : null;
 
-        // 서버에 모델 교체 요청
+        // 버튼 잠깐 비활성화(UX)
         if (reportBtn) {
             reportBtn.disabled = true;
             reportBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 모델 전환 중...';
         }
 
+        // 전역 스위치 요청 (실패해도 각 API는 model_version으로 동작하니 치명적 아님)
         try {
             console.log(`서버 모델 교체 요청: ${ver}`);
             const switchResp = await fetch("/genai-api/switch-model", {
@@ -39,9 +49,11 @@ document.addEventListener("DOMContentLoaded", function () {
             const switchData = await switchResp.json();
             if (switchData.success) {
                 console.log(`모델 교체 성공: ${ver}`);
+            } else {
+                console.warn("모델 교체 실패(무시 가능):", switchData.error);
             }
         } catch (err) {
-            console.error("모델 교체 중 오류:", err);
+            console.warn("모델 교체 요청 실패(무시 가능):", err);
         } finally {
             if (reportBtn) {
                 reportBtn.disabled = false;
@@ -49,7 +61,7 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         }
 
-        // 기존 UI 제어 로직
+        // UI 입력 제어(읽기전용 등)
         const trainingInputs = [
             "max_steps", "evaluation_strategy", "save_strategy",
             "learning_rate", "optim", "weight_decay",
@@ -76,19 +88,15 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    // 상단 라디오 버튼 클릭 시 UI 업데이트 이벤트 연결
+    // 라디오 change 이벤트
     document.querySelectorAll('input[name="modelVersion"]').forEach(radio => {
         radio.addEventListener('change', updateModelSettingsUI);
     });
 
-    // 초기 로드 시 한 번 실행하여 상태 맞춤
+    // 초기 실행
     updateModelSettingsUI();
 
-    function getModelVer() {
-        return document.querySelector('input[name="modelVersion"]:checked')?.value || "final";
-    }
-
-    // 연도 선택 로직 (기존 유지)
+    // 연도 선택 로직
     const startSelect = document.getElementById('startYear');
     const endSelect = document.getElementById('endYear');
     if (startSelect && endSelect) {
@@ -98,7 +106,8 @@ document.addEventListener("DOMContentLoaded", function () {
             endSelect.innerHTML = "";
             for (let y = startVal; y <= 2030; y++) {
                 const option = document.createElement("option");
-                option.value = y; option.textContent = y + "년";
+                option.value = y;
+                option.textContent = y + "년";
                 endSelect.appendChild(option);
             }
             endSelect.value = (currentEndVal >= startVal) ? currentEndVal : startVal;
@@ -107,82 +116,102 @@ document.addEventListener("DOMContentLoaded", function () {
         updateEndYearOptions();
     }
 
-    // 보고서 생성 (기존 유지)
+    // 보고서 생성
     if (reportForm) {
         reportForm.addEventListener("submit", async function (e) {
             e.preventDefault();
+
             const modelVer = getModelVer();
             const reportBtn = reportForm.querySelector("button[type='submit']");
 
-            if(resultSection) resultSection.style.display = "none";
-            if(loadingSpinner) loadingSpinner.style.display = "block";
-            if(reportBtn) { reportBtn.disabled = true; reportBtn.innerHTML = "생성 중..."; }
+            if (resultSection) resultSection.style.display = "none";
+            if (loadingSpinner) loadingSpinner.style.display = "block";
+            if (reportBtn) { reportBtn.disabled = true; reportBtn.innerHTML = "생성 중..."; }
 
             try {
                 const resp = await fetch("/genai-api/report", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        district: document.getElementById("regionSelect").value,
+                        district: getSelectedDistrict(),
                         start_year: parseInt(document.getElementById("startYear").value),
                         end_year: parseInt(document.getElementById("endYear").value),
                         model_version: modelVer,
                         prompt: "report"
                     }),
                 });
+
                 const data = await resp.json();
                 if (data.success) {
                     let parsedData = { title: "분석 결과", summary: "정보 없음", content: data.result };
                     try {
-                        const cleanJson = data.result.replace(/```json/g, "").replace(/```/g, "").trim();
+                        const cleanJson = (data.result || "").replace(/```json/g, "").replace(/```/g, "").trim();
                         parsedData = JSON.parse(cleanJson);
-                    } catch (err) { parsedData.content = data.result; }
+                    } catch (err) {
+                        parsedData.content = data.result;
+                    }
 
-                    aiTitle.textContent = parsedData.title || "분석 보고서";
-                    aiSummary.textContent = parsedData.summary || "요약 없음";
-                    aiContent.innerText = parsedData.content || "";
-                    resultSection.style.display = "block";
-                } else { alert(data.error || "오류 발생"); }
-            } catch (err) { alert("서버 통신 오류"); }
-            finally {
-                loadingSpinner.style.display = "none";
-                if(reportBtn) { reportBtn.disabled = false; reportBtn.innerHTML = "보고서 생성"; }
+                    if (aiTitle) aiTitle.textContent = parsedData.title || "분석 보고서";
+                    if (aiSummary) aiSummary.textContent = parsedData.summary || "요약 없음";
+                    if (aiContent) aiContent.innerText = parsedData.content || "";
+
+                    if (resultSection) resultSection.style.display = "block";
+                } else {
+                    alert(data.error || "오류 발생");
+                }
+            } catch (err) {
+                alert("서버 통신 오류");
+            } finally {
+                if (loadingSpinner) loadingSpinner.style.display = "none";
+                if (reportBtn) { reportBtn.disabled = false; reportBtn.innerHTML = "보고서 생성"; }
             }
         });
     }
 
-    // 정책 제안 및 Q&A (기존 유지)
+    // 정책 제안
     const policyBtn = document.getElementById("policy-btn");
     if (policyBtn) {
         policyBtn.addEventListener("click", async function () {
             const input = document.getElementById("policy-input");
             const resultArea = document.getElementById("policyResultArea");
-            if (!input.value.trim()) return;
+
+            if (!input || !input.value.trim()) return;
+
             policyBtn.disabled = true;
-            resultArea.style.display = "block";
-            resultArea.textContent = "생성 중...";
+            if (resultArea) {
+                resultArea.style.display = "block";
+                resultArea.textContent = "생성 중...";
+            }
+
             try {
                 const resp = await fetch("/genai-api/policy", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ prompt: input.value, model_version: getModelVer() }),
+                    body: JSON.stringify({
+                        prompt: input.value,
+                        district: getSelectedDistrict(),
+                        model_version: getModelVer()
+                    }),
                 });
+
                 const data = await resp.json();
-                resultArea.textContent = data.success ? data.result : data.error;
-            } finally { policyBtn.disabled = false; }
+                if (resultArea) resultArea.textContent = data.success ? data.result : (data.error || "오류");
+            } finally {
+                policyBtn.disabled = false;
+            }
         });
     }
 
+    // Q&A
     const qaBtn = document.getElementById("qa-btn");
-    const qaInput = document.getElementById("qa-input"); // 입력창 변수 추가
+    const qaInput = document.getElementById("qa-input");
 
     if (qaBtn && qaInput) {
-        // 엔터키 전송 및 Shift+Enter 줄바꿈 로직 추가
+        // 엔터 전송 / Shift+Enter 줄바꿈
         qaInput.addEventListener("keydown", function (e) {
-            // 엔터키만 눌렀을 때 실행
             if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault(); // 줄바꿈 방지
-                qaBtn.click(); // 전송 버튼 클릭 트리거
+                e.preventDefault();
+                qaBtn.click();
             }
         });
 
@@ -191,70 +220,46 @@ document.addEventListener("DOMContentLoaded", function () {
             if (!qaInput.value.trim()) return;
 
             const q = qaInput.value;
-            chat.innerHTML += `<div class="chat-bubble user-bubble">${q}</div>`;
+            if (chat) chat.innerHTML += `<div class="chat-bubble user-bubble">${q}</div>`;
             qaInput.value = "";
 
-            // 답변 대기 중임을 알리는 로딩 버블 생성
             const tempLoadingId = "ai-loading-" + Date.now();
-            chat.innerHTML += `
-                <div class="chat-bubble ai-bubble" id="${tempLoadingId}">
-                    <div class="typing-indicator">
-                        <span></span><span></span><span></span>
-                    </div>
-                </div>`;
-            chat.scrollTop = chat.scrollHeight;
+            if (chat) {
+                chat.innerHTML += `
+                    <div class="chat-bubble ai-bubble" id="${tempLoadingId}">
+                        <div class="typing-indicator">
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>`;
+                chat.scrollTop = chat.scrollHeight;
+            }
 
             try {
                 const resp = await fetch("/genai-api/qa", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ question: q, model_version: getModelVer() }),
+                    body: JSON.stringify({
+                        question: q,
+                        model_version: getModelVer()
+                    }),
                 });
-                const data = await resp.json();
 
-                // 생성된 로딩 버블을 찾아 실제 답변으로 교체
+                const data = await resp.json();
                 const loadingBubble = document.getElementById(tempLoadingId);
                 if (loadingBubble) {
-                    loadingBubble.innerHTML = data.success ? data.result : "답변을 가져오는 중 오류가 발생했습니다.";
+                    loadingBubble.innerHTML = data.success ? data.result : (data.error || "답변 생성 오류");
                 }
             } catch (err) {
                 const loadingBubble = document.getElementById(tempLoadingId);
-                if (loadingBubble) {
-                    loadingBubble.innerHTML = "서버 통신 오류가 발생했습니다.";
-                }
+                if (loadingBubble) loadingBubble.innerHTML = "서버 통신 오류가 발생했습니다.";
                 console.error(err);
             } finally {
-                chat.scrollTop = chat.scrollHeight;
+                if (chat) chat.scrollTop = chat.scrollHeight;
             }
         });
     }
 
-    // 설정 저장
-    const configForm = document.getElementById("configForm");
-    if (configForm) {
-        configForm.addEventListener("submit", async function (e) {
-            e.preventDefault();
-            if (getModelVer() !== "final") { alert("최종 모델 모드에서만 가능합니다."); return; }
-            const payload = {
-                temperature: parseFloat(document.getElementById("temperature").value),
-                max_tokens: parseInt(document.getElementById("max_tokens").value),
-                max_steps: parseInt(document.getElementById("max_steps").value),
-                learning_rate: document.getElementById("learning_rate").value,
-                optim: document.getElementById("optim").value
-            };
-            try {
-                const resp = await fetch("/genai-api/config", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                });
-                const data = await resp.json();
-                alert(data.success ? "저장 완료" : "오류");
-            } catch (err) { alert("서버 통신 오류"); }
-        });
-    }
-
-    // 텍스트 요약 서비스 연결
+    // 텍스트 요약
     const summaryBtn = document.getElementById("summary-btn");
     if (summaryBtn) {
         summaryBtn.addEventListener("click", async function () {
@@ -262,15 +267,16 @@ document.addEventListener("DOMContentLoaded", function () {
             const resultArea = document.getElementById("summaryResultArea");
             const resultText = document.getElementById("summaryText");
 
-            if (!input.value.trim()) {
+            if (!input || !input.value.trim()) {
                 alert("요약할 내용을 입력해주세요.");
                 return;
             }
 
             summaryBtn.disabled = true;
             summaryBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 요약 중...';
-            resultArea.style.display = "block";
-            resultText.textContent = "문서를 분석하여 요약 중입니다. 잠시만 기다려 주세요...";
+
+            if (resultArea) resultArea.style.display = "block";
+            if (resultText) resultText.textContent = "문서를 분석하여 요약 중입니다. 잠시만 기다려 주세요...";
 
             try {
                 const resp = await fetch("/genai-api/summarize", {
@@ -278,14 +284,11 @@ document.addEventListener("DOMContentLoaded", function () {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ text: input.value }),
                 });
+
                 const data = await resp.json();
-                if (data.success) {
-                    resultText.textContent = data.result;
-                } else {
-                    resultText.textContent = "오류: " + data.error;
-                }
+                if (resultText) resultText.textContent = data.success ? data.result : ("오류: " + (data.error || ""));
             } catch (err) {
-                resultText.textContent = "서버 통신 오류가 발생했습니다.";
+                if (resultText) resultText.textContent = "서버 통신 오류가 발생했습니다.";
             } finally {
                 summaryBtn.disabled = false;
                 summaryBtn.innerHTML = '<i class="bi bi-scissors mr-2"></i> 핵심 요약하기';
@@ -297,28 +300,20 @@ document.addEventListener("DOMContentLoaded", function () {
     const modelSelector = document.querySelector('.model-compare-selector');
     const navLinks = document.querySelectorAll('#genaiTab .nav-link');
 
-    // UI 상태를 업데이트하는 통합 함수
     function updateUIByTab(tabId) {
         if (!modelSelector) return;
-
         if (tabId === 'summary-tab') {
-            // 텍스트 요약 탭일 경우 상단 바 물리적 제거
             modelSelector.style.display = 'none';
         } else {
-            // 그 외의 탭일 경우 다시 표시
             modelSelector.style.display = 'block';
         }
     }
 
-    // 초기 실행: 페이지 로드 시 현재 활성화된 탭 확인 (새로고침 대응)
     const currentActiveTab = document.querySelector('#genaiTab .nav-link.active');
-    if (currentActiveTab) {
-        updateUIByTab(currentActiveTab.id);
-    }
+    if (currentActiveTab) updateUIByTab(currentActiveTab.id);
 
-    // 클릭 이벤트 리스너: 사용자가 메뉴를 클릭할 때마다 즉시 반영
     navLinks.forEach(link => {
-        link.addEventListener('click', function() {
+        link.addEventListener('click', function () {
             updateUIByTab(this.id);
         });
     });
